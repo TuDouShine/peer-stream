@@ -44,102 +44,139 @@
       <empty></empty>
 
       <form onchange="submitConfig(event)">
-        <inline>
-          <label for="PORT">端口号</label>
-          <input type="number" id="PORT" name="PORT" required />
-        </inline>
+        <fieldset class="card span-all">
+          <legend>🌐 网络设置</legend>
+          <div class="fields">
+            <inline>
+              <label for="PORT">端口号</label>
+              <input type="number" id="PORT" name="PORT" required />
+            </inline>
+            <inline>
+              <label for="preload">预加载个数</label>
+              <input type="number" name="preload" id="preload" required />
+            </inline>
+            <inline>
+              <label for="exeUeCoolTime">实例冷却期 (秒)</label>
+              <input type="number" name="exeUeCoolTime" id="exeUeCoolTime" required />
+            </inline>
+          </div>
+        </fieldset>
 
-        <inline>
-          <label for="preload">预加载个数</label>
-          <input type="number" name="preload" id="preload" required />
-        </inline>
+        <fieldset class="card">
+          <legend>🔒 访问认证</legend>
+          <div class="fields">
+            <label class="switch">
+              <input type="checkbox" id="http-auth" name="http-auth" />
+              <span>启用 HTTP 认证</span>
+            </label>
+            <inline class="auth-field wide">
+              <label for="auth">用户名 : 密码</label>
+              <input
+                type="password"
+                id="auth"
+                name="auth"
+                pattern="/^[a-zA-Z0-9]+:[a-zA-Z0-9]+$/"
+                autocomplete="off"
+                value="admin:000000"
+                onblur="this.type='password'"
+                onfocus="this.type='text'"
+              />
+            </inline>
+          </div>
+        </fieldset>
 
-        <inline>
-          <label for="exeUeCoolTime">冷却期 (s)</label>
-          <input type="number" name="exeUeCoolTime" id="exeUeCoolTime" required />
-        </inline>
+        <fieldset class="card">
+          <legend>⚙️ 运行模式</legend>
+          <div class="fields">
+            <label class="switch">
+              <input type="checkbox" id="one2one" name="one2one" />
+              <span>一对一模式</span>
+            </label>
+            <label class="switch">
+              <input type="checkbox" id="boot" name="boot" />
+              <span>开机自启动</span>
+            </label>
+            <label class="switch">
+              <input type="checkbox" id="UEVersion" name="UEVersion" />
+              <span>旧版 UE4 协议</span>
+            </label>
+          </div>
+        </fieldset>
 
-        <input title="http 认证" type="checkbox" id="http-auth" name="http-auth" />
+        <fieldset class="card span-all">
+          <legend>🎮 UE 启动参数</legend>
+          <div class="fields">
+            <inline class="wide">
+              <label for="GPUFile">UE 启动文件（GPU 服务器中的绝对路径）</label>
+              <input
+                type="text"
+                name="GPUFile"
+                id="GPUFile"
+                placeholder="例如：C:\Apps\MyApp\MyApp.exe"
+              />
+            </inline>
+            <inline>
+              <label for="resolution">分辨率</label>
+              <input
+                type="text"
+                name="resolution"
+                list="resolutionList"
+                id="resolution"
+                placeholder="如：1920*1080"
+              />
+              <datalist id="resolutionList">
+                <option value="1920*1080"></option>
+                <option value="1600*900"></option>
+                <option value="1366*768"></option>
+                <option value="1280*720"></option>
+                <option value="800*600"></option>
+                <option value="640*480"></option>
+              </datalist>
+            </inline>
+            <inline>
+              <label for="pixelStreamingWebRTCFps">渲染帧率</label>
+              <input
+                type="number"
+                name="pixelStreamingWebRTCFps"
+                id="pixelStreamingWebRTCFps"
+                placeholder="如：30"
+              />
+            </inline>
+            <inline id="GPU">
+              <label for="GPUNumber">GPU 数量</label>
+              <input type="number" name="GPUNumber" id="GPUNumber" placeholder="需要的 GPU 数量" />
+            </inline>
+            <!-- 每块 GPU 的进程承载量由 JS 动态插入在 #GPU 之后 -->
+            <div class="toggle-row wide">
+              <label class="switch">
+                <input type="checkbox" name="unattended" id="unattended" />
+                <span>忽略错误弹窗</span>
+              </label>
+              <label class="switch">
+                <input type="checkbox" name="renderOffScreen" id="renderOffScreen" />
+                <span>后台渲染</span>
+              </label>
+              <label class="switch">
+                <input type="checkbox" name="audioMixer" id="audioMixer" />
+                <span>传输音频</span>
+              </label>
+            </div>
+          </div>
+        </fieldset>
 
-        <inline style="grid-column: span 2">
-          <label for="auth">用户名:密码</label>
-          <input
-            type="password"
-            id="auth"
-            name="auth"
-            pattern="/^[a-zA-Z0-9]+:[a-zA-Z0-9]+$/"
-            autocomplete="off"
-            value="admin:000000"
-            onblur="this.type='password'"
-            onfocus="this.type='text'"
-          />
-        </inline>
-
-        <input title="一对一模式" type="checkbox" id="one2one" name="one2one" />
-
-        <input title="开机自启动" type="checkbox" id="boot" name="boot" />
-
-        <input title="旧版 UE4" type="checkbox" id="UEVersion" name="UEVersion" />
-
-        <inline style="grid-column: span 2">
-          <label for="GPUFile">UE启动进程</label>
-          <input
-            type="text"
-            name="GPUFile"
-            id="GPUFile"
-            placeholder="填入GPU服务器中的文件(需要填入绝对地址)"
-          />
-        </inline>
-
-        <inline>
-          <label for="resolution">分辨率</label>
-          <input
-            type="text"
-            name="resolution"
-            list="resolutionList"
-            id="resolution"
-            placeholder="如：1920*1080"
-          />
-          <datalist id="resolutionList">
-            <option value="1920*1080"></option>
-            <option value="1600*900"></option>
-            <option value="1366*768"></option>
-            <option value="1280*720"></option>
-            <option value="800*600"></option>
-            <option value="640*480"></option>
-          </datalist>
-        </inline>
-
-        <inline>
-          <label for="pixelStreamingWebRTCFps">渲染帧率</label>
-          <input
-            type="number"
-            name="pixelStreamingWebRTCFps"
-            id="pixelStreamingWebRTCFps"
-            placeholder="填入所需渲染帧率"
-          />
-        </inline>
-
-        <inline id="GPU">
-          <label for="GPUNumber">GPU数量</label>
-          <input type="number" name="GPUNumber" id="GPUNumber" placeholder="请填入需要的GPU数量" />
-        </inline>
-
-        <input title="忽略错误弹窗" type="checkbox" name="unattended" id="unattended" />
-
-        <input title="后台渲染UE" type="checkbox" name="renderOffScreen" id="renderOffScreen" />
-
-        <input title="传输音频" type="checkbox" name="audioMixer" id="audioMixer" />
-
-        <text-area style="grid-column: span 2">
-          <label for="iceServers">iceServers</label>
-          <textarea id="iceServers" name="iceServers"></textarea>
-        </text-area>
-
-        <text-area>
-          <label for="comment">备 注</label>
-          <textarea id="comment" name="comment"></textarea>
-        </text-area>
+        <fieldset class="card span-all">
+          <legend>🧊 高级设置</legend>
+          <div class="fields">
+            <text-area class="wide">
+              <label for="iceServers">ICE 服务器（STUN / TURN，JSON 格式）</label>
+              <textarea id="iceServers" name="iceServers"></textarea>
+            </text-area>
+            <text-area class="wide">
+              <label for="comment">备注</label>
+              <textarea id="comment" name="comment"></textarea>
+            </text-area>
+          </div>
+        </fieldset>
       </form>
 
       <video is="peer-stream" ui onplaying="getStats()">
