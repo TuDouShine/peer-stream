@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "signal",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["signal.js"],
+      "port": 88,
+      "autoPort": false
+    }
+  ]
+}

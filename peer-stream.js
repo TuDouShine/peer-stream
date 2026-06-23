@@ -162,6 +162,7 @@ class PeerStream extends HTMLVideoElement {
 
 	// setupWebsocket
 	async connectedCallback() {
+		if (this._movingForWrap) return; // ignore callbacks caused by wrapping
 		if (false == this.checkWebRTCSupport()) {
 			const overlayDiv = document.createElement('div');
 			overlayDiv.innerHTML = '你的浏览器版本过低!<br>推荐使用谷歌100以上版本浏览器!!';
@@ -178,6 +179,7 @@ class PeerStream extends HTMLVideoElement {
 
 		// This will happen each time the node is moved, and may happen before the element"s contents have been fully parsed. may be called once your element is no longer connected
 		if (!this.isConnected) return;
+		this._setupUI();
 		if (this.pc.connectionState === "connected" && this.dc.readyState === "open" && this.ws.readyState === 1) {
 			// this.pc.restartIce();
 			this.play();
@@ -207,6 +209,8 @@ class PeerStream extends HTMLVideoElement {
 	}
 
 	disconnectedCallback() {
+		if (this._movingForWrap) return; // ignore callbacks caused by wrapping
+		this._teardownUI();
 		// lifecycle binding
 		setTimeout(() => {
 			if (this.isConnected) return
@@ -475,6 +479,7 @@ class PeerStream extends HTMLVideoElement {
 		this.dc.onopen = (e) => {
 			console.log("✅", this.dc);
 			this.style.pointerEvents = "auto";
+			this.dispatchEvent(new CustomEvent("connected"));
 
 			// setTimeout(() => {
 			// 	this.dc.send(new Uint8Array([SEND.RequestInitialSettings]));
@@ -506,6 +511,7 @@ class PeerStream extends HTMLVideoElement {
 		this.dc.onopen = (e) => {
 			console.log('✅ data channel connected:', label)
 			this.style.pointerEvents = 'auto'
+			this.dispatchEvent(new CustomEvent("connected"))
 			this.dc.send(new Uint8Array([SEND.RequestInitialSettings]))
 			this.dc.send(new Uint8Array([SEND.RequestQualityControl]))
 		}
@@ -932,6 +938,304 @@ class PeerStream extends HTMLVideoElement {
 		}
 	}
 
+	// ───────────────────────────────────────────────────────────────────────────
+	// Developer-facing helpers (work whether or not the UI overlay is enabled)
+	// ───────────────────────────────────────────────────────────────────────────
+
+	// Send a UE console command (requires the UE app to be launched with
+	// -AllowPixelStreamingCommands=true / PixelStreaming.AllowConsoleCommands 1).
+	emitCommand(command) {
+		return this.emitMessage(
+			typeof command === "string" ? { ConsoleCommand: command } : command,
+			SEND.Command
+		);
+	}
+
+	// Apply a quality preset by sending well-known PixelStreaming console commands.
+	setQuality(level) {
+		const presets = {
+			low: { fps: 15, maxqp: 51 },
+			medium: { fps: 30, maxqp: 40 },
+			high: { fps: 60, maxqp: 20 },
+		};
+		const p = presets[level] || presets.medium;
+		if (this.dc?.readyState !== "open") return;
+		this.dc.send(new Uint8Array([SEND.RequestQualityControl]));
+		this.emitCommand(`PixelStreaming.WebRTC.MaxFps ${p.fps}`);
+		this.emitCommand(`PixelStreaming.Encoder.MaxQP ${p.maxqp}`);
+		this._quality = level;
+	}
+
+	// ───────────────────────────────────────────────────────────────────────────
+	// Optional in-player controls overlay. Opt-in via the `ui` attribute so the
+	// bare-bones embed (`<video is="peer-stream">`) stays unchanged by default.
+	// ───────────────────────────────────────────────────────────────────────────
+
+	_setupUI() {
+		if (!this.hasAttribute("ui") || this._movingForWrap) return;
+		PeerStream._injectStyle();
+
+		// Wrap the video so the overlay can be positioned over it without
+		// depending on the host page's layout.
+		if (!this._wrap || !this._wrap.isConnected || this.parentElement !== this._wrap) {
+			const wrap = document.createElement("div");
+			wrap.className = "ps-wrap";
+			// Moving the element fires disconnected/connected callbacks synchronously;
+			// suppress them so we don't recursively re-wrap.
+			this._movingForWrap = true;
+			if (this.parentNode) this.parentNode.insertBefore(wrap, this);
+			wrap.appendChild(this);
+			this._movingForWrap = false;
+			this._wrap = wrap;
+			this._buildOverlay(wrap);
+		}
+		this._bindUIEvents();
+		this._refreshButtons();
+	}
+
+	_teardownUI() {
+		clearInterval(this._statsTimer);
+		this._statsTimer = null;
+		if (this._wrap) {
+			// Only hand the video back if it is still inside our wrapper. If the host
+			// page already detached it (e.g. ps.remove()), leave it detached so the
+			// disconnect cleanup can run — otherwise re-attaching would keep the
+			// WebSocket/PeerConnection alive.
+			if (this.parentElement === this._wrap && this._wrap.parentNode) {
+				this._wrap.parentNode.insertBefore(this, this._wrap);
+			}
+			this._wrap.remove();
+			this._wrap = null;
+			this._overlay = null;
+		}
+	}
+
+	static _injectStyle() {
+		if (document.getElementById("peer-stream-ui-style")) return;
+		const style = document.createElement("style");
+		style.id = "peer-stream-ui-style";
+		style.textContent = `
+		.ps-wrap { position: relative; width: 100%; height: 100%; overflow: hidden;
+			background: #000; --ps-accent: #ff4400; font-family: system-ui, sans-serif; }
+		.ps-wrap > video { width: 100%; height: 100%; display: block; }
+		.ps-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 2;
+			color: #fff; }
+		.ps-overlay button { pointer-events: auto; }
+		.ps-bar { position: absolute; left: 0; right: 0; bottom: 0;
+			display: flex; align-items: center; gap: .25rem; padding: .4rem .6rem;
+			background: linear-gradient(transparent, rgba(0,0,0,.6));
+			opacity: 0; transition: opacity .2s; }
+		.ps-wrap:hover .ps-bar, .ps-bar:focus-within { opacity: 1; }
+		.ps-bar button { background: transparent; border: 0; color: #fff;
+			font-size: 1.25rem; line-height: 1; padding: .35rem .5rem; cursor: pointer;
+			border-radius: .35rem; }
+		.ps-bar button:hover { background: rgba(255,255,255,.15); }
+		.ps-bar .ps-spacer { flex: 1; }
+		.ps-bar select { pointer-events: auto; background: rgba(0,0,0,.5); color: #fff;
+			border: 1px solid rgba(255,255,255,.3); border-radius: .35rem; padding: .25rem;
+			cursor: pointer; }
+		.ps-hud { position: absolute; top: .6rem; left: .6rem; padding: .5rem .7rem;
+			background: rgba(0,0,0,.55); border-radius: .5rem; font: 12px/1.5 monospace;
+			white-space: pre; pointer-events: none; display: none; }
+		.ps-hud.on { display: block; }
+		.ps-hud b { color: var(--ps-accent); }
+		.ps-status { position: absolute; inset: 0; display: none;
+			align-items: center; justify-content: center; flex-direction: column;
+			gap: 1rem; background: rgba(0,0,0,.55); pointer-events: none;
+			font-size: 1.1rem; text-align: center; }
+		.ps-status.on { display: flex; }
+		.ps-spin { width: 2.5rem; height: 2.5rem; border-radius: 50%;
+			border: 3px solid rgba(255,255,255,.25); border-top-color: var(--ps-accent);
+			animation: ps-spin 1s linear infinite; }
+		@keyframes ps-spin { to { transform: rotate(360deg); } }
+		.ps-status button { pointer-events: auto; background: var(--ps-accent);
+			border: 0; color: #fff; padding: .5rem 1rem; border-radius: .5rem;
+			font-size: 1rem; cursor: pointer; }
+		.ps-pad { position: absolute; inset: 0; display: none; pointer-events: none; }
+		.ps-pad.on { display: block; }
+		.ps-pad .ps-key { position: absolute; width: 3.2rem; height: 3.2rem;
+			border-radius: 50%; background: rgba(255,255,255,.15);
+			border: 1px solid rgba(255,255,255,.35); color: #fff; font-size: 1rem;
+			pointer-events: auto; touch-action: none; user-select: none; }
+		.ps-pad .ps-key:active { background: var(--ps-accent); }
+		.ps-pad .ps-up    { left: 4.5rem; bottom: 7.7rem; }
+		.ps-pad .ps-left  { left: 1.2rem; bottom: 4.4rem; }
+		.ps-pad .ps-right { left: 7.8rem; bottom: 4.4rem; }
+		.ps-pad .ps-down  { left: 4.5rem; bottom: 1.1rem; }
+		.ps-pad .ps-a { right: 1.5rem; bottom: 4.4rem; }
+		.ps-pad .ps-b { right: 5rem;   bottom: 1.6rem; }
+		`;
+		document.head.appendChild(style);
+	}
+
+	_buildOverlay(wrap) {
+		const overlay = document.createElement("div");
+		overlay.className = "ps-overlay";
+		const isTouch = matchMedia("(pointer: coarse)").matches;
+		overlay.innerHTML = `
+			<div class="ps-hud" data-ps="hud"></div>
+			<div class="ps-status on" data-ps="status">
+				<div class="ps-spin"></div>
+				<div data-ps="statusText">连接中…</div>
+				<button data-ps="retry" hidden>重新连接</button>
+			</div>
+			<div class="ps-pad" data-ps="pad">
+				<button class="ps-key ps-up"    data-key="KeyW" data-code="87">▲</button>
+				<button class="ps-key ps-left"  data-key="KeyA" data-code="65">◀</button>
+				<button class="ps-key ps-right" data-key="KeyD" data-code="68">▶</button>
+				<button class="ps-key ps-down"  data-key="KeyS" data-code="83">▼</button>
+				<button class="ps-key ps-a" data-key="Space" data-code="32">A</button>
+				<button class="ps-key ps-b" data-key="KeyE"  data-code="69">B</button>
+			</div>
+			<div class="ps-bar">
+				<button data-ps="play"  title="播放/暂停">⏸</button>
+				<button data-ps="mute"  title="静音">🔊</button>
+				<select data-ps="quality" title="画质">
+					<option value="">画质: 自动</option>
+					<option value="high">画质: 高</option>
+					<option value="medium">画质: 中</option>
+					<option value="low">画质: 低</option>
+				</select>
+				<span class="ps-spacer"></span>
+				<button data-ps="stats" title="统计信息">📊</button>
+				<button data-ps="reconnect" title="重新连接">🔄</button>
+				${isTouch ? '<button data-ps="padToggle" title="触摸方向键">🎮</button>' : ""}
+				<button data-ps="lock" title="鼠标锁定">🎯</button>
+				<button data-ps="fs"   title="全屏">⛶</button>
+			</div>
+		`;
+		wrap.appendChild(overlay);
+		this._overlay = overlay;
+	}
+
+	_q(name) {
+		return this._overlay?.querySelector(`[data-ps="${name}"]`);
+	}
+
+	_bindUIEvents() {
+		if (!this._overlay) return;
+		const o = this._overlay;
+
+		o.querySelector('[data-ps="play"]').onclick = () => {
+			this.paused ? this.play() : this.pause();
+			this._refreshButtons();
+		};
+		o.querySelector('[data-ps="mute"]').onclick = () => {
+			this.muted = !this.muted;
+			if (this.audio) this.audio.muted = this.muted;
+			this._refreshButtons();
+		};
+		o.querySelector('[data-ps="stats"]').onclick = () => {
+			this._q("hud").classList.toggle("on");
+			this._refreshStatsLoop();
+		};
+		o.querySelector('[data-ps="reconnect"]').onclick = () => this._manualReconnect();
+		this._q("retry").onclick = () => this._manualReconnect();
+		o.querySelector('[data-ps="lock"]').onclick = () => this.requestPointerLock?.();
+		o.querySelector('[data-ps="fs"]').onclick = () => {
+			if (document.fullscreenElement) document.exitFullscreen();
+			else this._wrap.requestFullscreen?.();
+		};
+		o.querySelector('[data-ps="quality"]').onchange = (e) => {
+			if (e.target.value) this.setQuality(e.target.value);
+		};
+		const padToggle = o.querySelector('[data-ps="padToggle"]');
+		if (padToggle) padToggle.onclick = () => this._q("pad").classList.toggle("on");
+
+		// On-screen direction pad: synthesize key events through existing handlers.
+		o.querySelectorAll(".ps-key").forEach((btn) => {
+			const fake = { code: btn.dataset.key, keyCode: +btn.dataset.code, repeat: false };
+			const down = (e) => { e.preventDefault(); this.onkeydown?.(fake); };
+			const up = (e) => { e.preventDefault(); this.onkeyup?.(fake); };
+			btn.addEventListener("pointerdown", down);
+			btn.addEventListener("pointerup", up);
+			btn.addEventListener("pointerleave", up);
+			btn.addEventListener("pointercancel", up);
+		});
+
+		this._bindLifecycleOnce();
+	}
+
+	// Connection-state overlay reacts to the component's own lifecycle events.
+	// Bound on `this` exactly once so re-entering the viewer doesn't stack listeners.
+	_bindLifecycleOnce() {
+		if (this._lifecycleBound) return;
+		this._lifecycleBound = true;
+		this.addEventListener("connected", () => this._setStatus(false));
+		this.addEventListener("playerdisconnected", () => this._setStatus(true, "连接断开，重连中…"));
+		this.addEventListener("ueDisConnected", () => this._setStatus(true, "应用已退出，等待中…"));
+		this.addEventListener("playerqueue", (e) => {
+			const n = e.detail?.count ?? e.detail?.index ?? "";
+			this._setStatus(true, `排队中… 第 ${n} 位`, false);
+		});
+	}
+
+	_setStatus(show, text = "", showRetry) {
+		const status = this._q("status");
+		if (!status) return;
+		status.classList.toggle("on", show);
+		if (text) this._q("statusText").textContent = text;
+		const retry = this._q("retry");
+		const wantRetry = showRetry ?? show;
+		retry.hidden = !wantRetry;
+		status.querySelector(".ps-spin").style.display = wantRetry ? "none" : "";
+	}
+
+	_manualReconnect() {
+		this._setStatus(true, "连接中…", false);
+		clearTimeout(this.reconnect);
+		this.ws.onclose = null;
+		this.ws.close(1000);
+		this.connectedCallback();
+	}
+
+	_refreshButtons() {
+		if (!this._overlay) return;
+		const play = this._q("play");
+		if (play) play.textContent = this.paused ? "▶" : "⏸";
+		const mute = this._q("mute");
+		if (mute) mute.textContent = this.muted ? "🔇" : "🔊";
+	}
+
+	_refreshStatsLoop() {
+		const hud = this._q("hud");
+		if (!hud?.classList.contains("on")) {
+			clearInterval(this._statsTimer);
+			this._statsTimer = null;
+			return;
+		}
+		if (this._statsTimer) return;
+		const tick = async () => {
+			if (!(this.pc instanceof RTCPeerConnection) || this.pc.connectionState !== "connected") {
+				hud.textContent = "等待连接…";
+				return;
+			}
+			const stats = await this.pc.getStats(null);
+			let w = 0, h = 0, fps = 0, lost = 0, jitter = 0, bitrate = 0;
+			stats.forEach((s) => {
+				if (s.type === "inbound-rtp" && s.kind === "video") {
+					w = s.frameWidth || w; h = s.frameHeight || h;
+					fps = s.framesPerSecond || 0; lost = s.packetsLost || 0;
+					jitter = s.jitter || 0;
+				}
+				if (s.type === "transport") {
+					const dt = s.timestamp - (this._lastTs || s.timestamp);
+					const db = s.bytesReceived - (this._lastBytes || s.bytesReceived);
+					if (dt > 0) bitrate = (db * 8) / dt; // kbps
+					this._lastTs = s.timestamp; this._lastBytes = s.bytesReceived;
+				}
+			});
+			hud.innerHTML =
+				`<b>分辨率</b> ${w}×${h}\n` +
+				`<b>帧率</b> ${fps} FPS\n` +
+				`<b>码率</b> ${bitrate.toFixed(0)} kbps\n` +
+				`<b>QP</b> ${this.VideoEncoderQP ?? "-"}\n` +
+				`<b>丢包</b> ${lost}\n` +
+				`<b>抖动</b> ${(jitter * 1000).toFixed(1)} ms`;
+		};
+		this._statsTimer = setInterval(tick, 1000);
+		tick();
+	}
 
 }
 

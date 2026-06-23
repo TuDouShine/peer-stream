@@ -390,22 +390,30 @@ global.serve = async (PORT) => {
 			return
 		}
 
-		if (req.url === '/') req.url = '/signal.html'
+		// strip query string (e.g. cache-busting "?v=123") before resolving the file
+		let pathname = req.url.split("?")[0];
+		if (pathname === "/") pathname = "/signal.html";
 		// serve static files
 		const read = fs.createReadStream(
-			path.join(__dirname, path.normalize(req.url))
+			path.join(__dirname, path.normalize(pathname))
 		);
 		const types = {
 			".html": "text/html",
 			".css": "text/css",
 			".js": "text/javascript",
+			".json": "application/json",
+			".svg": "image/svg+xml",
+			".ico": "image/x-icon",
 		};
-		const type = types[path.extname(req.url)];
+		const type = types[path.extname(pathname)];
 		if (type) res.setHeader("Content-Type", type);
+		// admin/SDK assets change during development — don't let browsers cache them
+		res.setHeader("Cache-Control", "no-cache");
 
 		read
 			.on("error", async (error) => {
-				res.end('')
+				res.writeHead(404);
+				res.end("");
 			})
 			.on("ready", () => {
 				read.pipe(res);
