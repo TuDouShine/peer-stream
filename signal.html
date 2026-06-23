@@ -146,18 +146,41 @@
         <track default kind="captions" srclang="en" />
       </video>
 
-      <table onclick="tableClick(event)">
-        <thead>
-          <tr>
-            <th>进程</th>
-            <th>IP地址</th>
-            <th>端口号</th>
-            <th>路径</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+      <section class="dashboard">
+        <div class="stat-cards">
+          <div class="stat"><span class="stat-value" data-stat="players">0</span><span class="stat-label">在线用户</span></div>
+          <div class="stat"><span class="stat-value" data-stat="engines">0</span><span class="stat-label">UE 实例</span></div>
+          <div class="stat"><span class="stat-value" data-stat="freeUe">0</span><span class="stat-label">空闲实例</span></div>
+          <div class="stat"><span class="stat-value" data-stat="agents">0</span><span class="stat-label">启动代理</span></div>
+          <div class="stat"><span class="stat-value" data-stat="queued">0</span><span class="stat-label">排队中</span></div>
+          <div class="stat"><span class="stat-value" data-stat="uptime">—</span><span class="stat-label">运行时长</span></div>
+        </div>
+
+        <div class="dash-toolbar">
+          <button type="button" onclick="adminCmd('startUe')">▶️ 启动 UE 实例</button>
+          <button type="button" onclick="adminCmd('refresh')">🔄 刷新</button>
+        </div>
+
+        <table onclick="tableClick(event)">
+          <thead>
+            <tr>
+              <th>进程</th>
+              <th>IP地址</th>
+              <th>端口号</th>
+              <th>路径</th>
+              <th>在线时长</th>
+              <th>玩家数</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <div class="log-panel">
+          <header>服务器日志</header>
+          <pre class="logs" data-logs></pre>
+        </div>
+      </section>
     </main>
 
     <div id="toast-container"></div>

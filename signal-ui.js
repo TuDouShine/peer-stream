@@ -436,59 +436,108 @@ const submitConfig = async (event) => {
   await handleConfigUpdate(config, PORT_new);
 };
 
+// 把秒数格式化为人类可读的运行时长
+const fmtUptime = (sec) => {
+  if (sec == null || isNaN(sec)) return "—";
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  if (d) return `${d}天 ${h}时`;
+  if (h) return `${h}时 ${m}分`;
+  if (m) return `${m}分 ${s}秒`;
+  return `${s}秒`;
+};
+
+// 哪些进程类型支持“断开/停止”操作
+const KILLABLE = { "Unreal Engine": "killUE", "peer-stream": "killPlayer", "signal.js": "exit" };
+
+let _adminWs = null;
+
+// 通过管理后台 WebSocket 发送受限指令（不再使用 /eval）
+function adminCmd(cmd, extra = {}) {
+  if (!_adminWs || _adminWs.readyState !== WebSocket.OPEN) {
+    toast("管理通道未连接", "err");
+    return;
+  }
+  _adminWs.send(JSON.stringify({ cmd, ...extra }));
+}
+
+const renderDashboard = (data) => {
+  const stats = data.stats || {};
+  for (const key of ["players", "engines", "freeUe", "agents", "queued"]) {
+    const el = $(`[data-stat="${key}"]`);
+    if (el) el.textContent = stats[key] ?? 0;
+  }
+  const up = $(`[data-stat="uptime"]`);
+  if (up) up.textContent = fmtUptime(stats.uptime);
+
+  const rows = (data.processes || [])
+    .map((a) => {
+      const action = KILLABLE[a.type] ? (a.type === "signal.js" ? "停止" : "断开") : "";
+      return `
+        <tr data-type="${a.type}" data-port="${a.PORT ?? ""}">
+          <td>${a.type ?? ""}</td>
+          <td>${a.address ?? ""}</td>
+          <td>${a.PORT ?? ""}</td>
+          <td>${a.path ?? ""}</td>
+          <td>${fmtUptime(a.uptime)}</td>
+          <td>${a.players ?? "—"}</td>
+          <td>${action}</td>
+        </tr>`;
+    })
+    .join("");
+  $(".dashboard table tbody").innerHTML = rows;
+};
+
+const appendLog = (entry) => {
+  const pre = $("[data-logs]");
+  if (!pre) return;
+  const time = new Date(entry.ts).toLocaleTimeString();
+  pre.textContent += `[${time}] ${entry.line}\n`;
+  // 限制长度，避免无限增长
+  const lines = pre.textContent.split("\n");
+  if (lines.length > 400) pre.textContent = lines.slice(-400).join("\n");
+  pre.scrollTop = pre.scrollHeight;
+};
+
 const getProcess = () => {
-  let ws = `ws://${location.host}/${navigator.platform}/admin`;
-  ws = new WebSocket(ws, `exec-ue`);
+  const url = `ws://${location.host}/${navigator.platform}/admin`;
+  const ws = new WebSocket(url, `exec-ue`);
+  _adminWs = ws;
   ws.onopen = function () {
-    console.info("✅", ws);
+    console.info("✅ admin", ws);
     window.addEventListener("hashchange", () => ws.close(), { once: true });
   };
 
   ws.onmessage = function (e) {
-    let logs = JSON.parse(e.data);
-    logs = logs
-      .map(
-        (a) => `
-          <tr ${a.type}>
-            <td>${a.type}</td>
-            <td>${a.address}</td>
-            <td>${a.PORT}</td>
-            <td>${a.path}</td>
-            <td>断开</td>
-          </tr>`
-      )
-      .join("");
-    $("table tbody").innerHTML = logs;
+    let msg;
+    try {
+      msg = JSON.parse(e.data);
+    } catch {
+      return;
+    }
+    if (msg.type === "admin") renderDashboard(msg);
+    else if (msg.type === "log") appendLog(msg);
+    else if (msg.type === "logs") (msg.logs || []).forEach(appendLog);
+    else if (msg.type === "ack") toast(msg.ok ? "操作成功" : `操作失败: ${msg.error || ""}`, msg.ok ? "ok" : "err");
   };
 
   ws.onclose = (e) => {
-    console.log(e);
+    if (_adminWs === ws) _adminWs = null;
   };
 };
 
 async function tableClick(event) {
-  if (event.target.innerHTML === "断开") {
-    const process = event.target.parentElement.children;
-    const PORT = process[2].innerText;
-    let evalMap = {
-      "signal.js": "setTimeout(()=>process.exit(0),1),''",
-      "Unreal Engine": `killUE(${PORT})`,
-      "peer-stream": `killPlayer(${PORT})`,
-      "exec-ue": "throw '这是管理员'",
-    };
-
-    const evalCode = encodeURIComponent(evalMap[process[0].innerText]);
-
-    await fetch("./eval", {
-      method: "POST",
-      headers: { eval: evalCode },
-    })
-      .then((r) => {
-        if (!r.ok) throw decodeURIComponent(r.headers.get("error"));
-        toast("操作成功", "ok");
-      })
-      .catch((error) => toast(error, "err"));
-  }
+  const cell = event.target;
+  if (cell.tagName !== "TD" || (cell.innerHTML !== "断开" && cell.innerHTML !== "停止")) return;
+  const row = cell.parentElement;
+  const type = row.dataset.type;
+  const port = parseInt(row.dataset.port, 10);
+  const cmd = KILLABLE[type];
+  if (!cmd) return;
+  if (cmd === "exit" && !confirm("确定要停止信令服务器吗？")) return;
+  adminCmd(cmd, cmd === "exit" ? {} : { port });
 }
 
 async function getStats() {
@@ -582,7 +631,7 @@ window.onload = window.onhashchange = async () => {
       break;
     }
     case "#signal.js": {
-      $("main").prepend($("table"));
+      $("main").prepend($(".dashboard"));
       getProcess();
       break;
     }

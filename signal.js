@@ -5,6 +5,40 @@ Object.assign(global, require("./signal.json"));
 const fs = require('fs')
 const child_process = require('child_process')
 
+// 服务器启动时间（用于运行时长统计）
+global.startedAt = Date.now();
+
+// 独立的 console，直接写到终端，不经过下面的广播包装（供 print 的表格使用）
+const rawConsole = new (require("console").Console)({ stdout: process.stdout, stderr: process.stderr });
+
+// ── 管理日志：环形缓冲 + 向 /admin 客户端广播 console 输出 ──
+const LOG_BUFFER = [];
+const LOG_MAX = 200;
+function broadcastLog(level, text) {
+	const entry = { type: "log", level, ts: Date.now(), line: text };
+	LOG_BUFFER.push(entry);
+	if (LOG_BUFFER.length > LOG_MAX) LOG_BUFFER.shift();
+	if (typeof EXECUE === "undefined") return;
+	const data = JSON.stringify(entry);
+	for (const a of EXECUE.clients) {
+		if (a.req?.url?.endsWith("admin") && a.readyState === 1) {
+			try { a.send(data); } catch { }
+		}
+	}
+}
+for (const level of ["log", "warn", "error", "info"]) {
+	const orig = console[level].bind(console);
+	console[level] = (...args) => {
+		orig(...args);
+		try {
+			broadcastLog(
+				level,
+				args.map((a) => (typeof a === "string" ? a : require("util").inspect(a))).join(" ")
+			);
+		} catch { }
+	};
+}
+
 ////////////////////////////////// 2024年6月 删除 !!!!
 if (global.env) {
 	const signal = {
@@ -157,9 +191,17 @@ function InitExecUe() {
 	);
 	EXECUE.on("connection", (socket, req) => {
 		socket.req = req;
+		socket.connectedAt = Date.now();
 
 		socket.isAlive = true;
 		socket.on("pong", heartbeat);
+
+		// 管理后台客户端：推送历史日志并接收受限的管理指令（不使用 eval）
+		if (req.url.endsWith("admin")) {
+			try { socket.send(JSON.stringify({ type: "logs", logs: LOG_BUFFER })); } catch { }
+			socket.on("message", (raw) => handleAdminCommand(socket, raw));
+		}
+
 		print();
 	});
 
@@ -171,6 +213,7 @@ global.ENGINE = new Server({ noServer: true, clientTracking: true }, () => { });
 
 ENGINE.on("connection", (ue, req) => {
 	ue.req = req;
+	ue.connectedAt = Date.now();
 
 	ue.isAlive = true;
 	ue.on("pong", heartbeat);
@@ -252,12 +295,16 @@ async function POST(request, response, HTTP) {
 		}
 
 		case "/eval": {
+			// 任意代码执行：默认禁用，需在 signal.json 中设置 "enableEval": true 才开启
+			if (!global.enableEval) throw 'eval 接口已禁用（如需开启请在 signal.json 设置 enableEval:true）';
 			return eval(decodeURIComponent(request.headers['eval']))
 
 			break;
 		}
 
 		case "/exec": {
+			// 任意命令执行：默认禁用，需在 signal.json 中设置 "enableEval": true 才开启
+			if (!global.enableEval) throw 'exec 接口已禁用（如需开启请在 signal.json 设置 enableEval:true）';
 			return new Promise((res, rej) => {
 
 				child_process.exec(
@@ -286,6 +333,8 @@ async function Signal(request, response, HTTP) {
 
 	let newSignal = JSON.parse(decodeURIComponent(request.headers['signal']))
 
+	// 安全：enableEval 只能通过直接编辑 signal.json 设置，禁止经由网络配置接口开启
+	delete newSignal.enableEval;
 
 	//修改了端口，执行下列方法使其生效
 	if (newSignal.PORT) {
@@ -328,7 +377,19 @@ async function Signal(request, response, HTTP) {
 
 
 
+// 仅允许覆盖这些已知的应用文件，防止路径穿越/任意文件写入
+const ALLOWED_WRITE = new Set([
+	"signal.html",
+	"signal.js",
+	"signal.css",
+	"signal-ui.js",
+	"peer-stream.js",
+]);
+
 async function Write(req, res, HTTP) {
+	const target = decodeURIComponent(req.headers['write'] || '').replace(/^[/\\]+/, '');
+	const base = path.basename(target);
+	if (target !== base || !ALLOWED_WRITE.has(base)) throw '不允许写入该文件';
 
 	const chunks = [];
 
@@ -343,7 +404,7 @@ async function Write(req, res, HTTP) {
 		})
 	})
 
-	await fs.promises.writeFile(__dirname + decodeURIComponent(req.headers['write']), body)
+	await fs.promises.writeFile(path.join(__dirname, base), body)
 
 	return ('updated');
 
@@ -455,6 +516,7 @@ global.PLAYER = new Server({
 // every player
 PLAYER.on("connection", (fe, req) => {
 	fe.req = req;
+	fe.connectedAt = fe.connectedAt || Date.now();
 
 	fe.isAlive = true;
 
@@ -590,17 +652,20 @@ child_process.exec(
 	`start http://${address}:${PORT}/#signal.json`
 );
 
-// 打印映射关系
+// 打印映射关系，并向管理后台推送增强的仪表盘数据
 function print() {
-	const logs = [{ type: 'signal.js', address, PORT, path: __dirname }];
+	const logs = [{ type: 'signal.js', address, PORT, path: __dirname, connectedAt: global.startedAt }];
 
-	const feList = [...PLAYER.clients].filter((fe) => !fe.ue).concat(...EXECUE.clients);
+	// 排队中的玩家 + 真实的 exec-ue 代理（排除管理后台自身的连接）
+	const feList = [...PLAYER.clients].filter((fe) => !fe.ue)
+		.concat([...EXECUE.clients].filter((a) => !a.req.url.endsWith('admin')));
 	feList.forEach((fe) => {
 		logs.push({
 			type: fe.req.headers["sec-websocket-protocol"],
 			address: fe.req.socket.remoteAddress,
 			PORT: fe.req.socket.remotePort,
-			path: fe.req.url
+			path: fe.req.url,
+			connectedAt: fe.connectedAt
 		})
 	});
 
@@ -609,24 +674,45 @@ function print() {
 			type: "Unreal Engine",
 			address: ue.req.socket.remoteAddress,
 			PORT: ue.req.socket.remotePort,
-			path: ue.req.url
+			path: ue.req.url,
+			connectedAt: ue.connectedAt,
+			players: ue.fe.size
 		})
 		ue.fe.forEach((fe) => {
 			logs.push({
 				type: fe.req.headers["sec-websocket-protocol"],
 				address: fe.req.socket.remoteAddress,
 				PORT: fe.req.socket.remotePort,
-				path: fe.req.url
+				path: fe.req.url,
+				connectedAt: fe.connectedAt
 			})
 		});
 	});
 
+	const now = Date.now();
+	const processes = logs.map((l) => ({
+		type: l.type,
+		address: l.address,
+		PORT: l.PORT,
+		path: l.path,
+		uptime: l.connectedAt ? Math.floor((now - l.connectedAt) / 1000) : null,
+		players: l.players ?? null,
+	}));
+	const stats = {
+		uptime: Math.floor((now - global.startedAt) / 1000),
+		players: PLAYER.clients.size,
+		engines: ENGINE.clients.size,
+		agents: [...EXECUE.clients].filter((a) => !a.req.url.endsWith('admin')).length,
+		freeUe: [...ENGINE.clients].filter((ue) => ue.fe.size === 0).length,
+		queued: [...PLAYER.clients].filter((fe) => !fe.ue).length,
+	};
+	const payload = JSON.stringify({ type: "admin", ts: now, stats, processes });
+
 	EXECUE.clients.forEach(a => {
-		if(a.req.url.endsWith('admin'))
-			a.send(JSON.stringify(logs))
+		if (a.req.url.endsWith('admin') && a.readyState === 1) a.send(payload)
 	})
-	console.clear();
-	console.table(logs)
+	rawConsole.clear();
+	rawConsole.table(processes)
 
 }
 
@@ -756,6 +842,29 @@ global.Boot = async function () {
 Boot().catch(err => { });
 
 
+
+// 管理后台指令处理：仅允许固定的安全操作，替代旧的 /eval 方式
+async function handleAdminCommand(socket, raw) {
+	let msg;
+	try { msg = JSON.parse(raw.toString()); } catch { return; }
+	const reply = (ok, error) => {
+		try {
+			socket.send(JSON.stringify({ type: "ack", cmd: msg.cmd, ok, error: error ? String(error) : undefined }));
+		} catch { }
+	};
+	try {
+		switch (msg.cmd) {
+			case "killPlayer": await global.killPlayer(+msg.port); reply(true); break;
+			case "killUE": await global.killUE(+msg.port); reply(true); break;
+			case "startUe": StartExecUe(); reply(true); break;
+			case "refresh": print(); reply(true); break;
+			case "exit": reply(true); setTimeout(() => process.exit(0), 100); break;
+			default: reply(false, "未知指令");
+		}
+	} catch (e) {
+		reply(false, e);
+	}
+}
 
 global.killPlayer = async function (playerId) {
 	const fe = [...PLAYER.clients].find(a => a.req.socket.remotePort === playerId)

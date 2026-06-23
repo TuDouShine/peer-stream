@@ -1,6 +1,7 @@
 {
 	"PORT": 88,
 	"auth": false,
+	"enableEval": false,
 	"one2one": false,
 	"UE5": [
 		"start C:\\Users\\admin\\Desktop\\gza\\Windows\\gza.exe -Unattended -RenderOffScreen -PixelStreamingURL=ws://10.0.20.245:88/ -GraphicsAdapter=1 -ForceRes -ResX=640 -ResY=480 -PixelStreamingWebRTCFps=30",
