@@ -4,9 +4,10 @@
    ========================================================================== */
 
 :root {
-  --accent: #ff4400;
-  --accent-2: #ff7a4d;
-  --accent-soft: rgba(255, 68, 0, 0.14);
+  --accent: #4a7bff;
+  --accent-2: #6f97ff;
+  --accent-soft: rgba(74, 123, 255, 0.16);
+  --topbar-h: 4rem;
   --radius: 0.6rem;
   --radius-lg: 1rem;
   --gap: 1rem;
@@ -61,13 +62,75 @@ textarea::-webkit-scrollbar-thumb {
 }
 
 body {
-  display: flex;
+  margin: 0;
   height: 100vh;
   width: 100vw;
-  margin: 0;
   background-color: var(--bg);
   color: var(--text);
   font-family: var(--font);
+}
+
+/* 应用外壳：顶栏在上，下面为「侧栏 | 内容」一行 */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+.body-row {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ─── 顶部品牌栏 ───────────────────────────────────────────────────────── */
+.topbar {
+  height: var(--topbar-h);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.4rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.brand .logo {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 0.9;
+  font-size: 1.5rem;
+  font-style: italic;
+  background: linear-gradient(92deg, #3df0ff, #4a7bff 45%, #c46bff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.brand .logo small {
+  font-size: 0.42em;
+  letter-spacing: 0.32em;
+  font-style: normal;
+}
+.icon-btn {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: color var(--tr), border-color var(--tr);
+}
+.icon-btn.power:hover {
+  color: #e74c3c;
+  border-color: #e74c3c;
 }
 
 /* ─── 主内容区 ─────────────────────────────────────────────────────────── */
@@ -77,11 +140,39 @@ main {
   padding: 1.5rem;
   flex-grow: 1;
   min-width: 0;
+  position: relative;
 }
 
-/* 哈希路由：只显示当前激活的视图（第一个子元素） */
-main > :not(:first-child) {
-  display: none !important;
+/* 内容区水印 */
+main::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='130'><text x='10' y='70' font-size='38' font-style='italic' font-family='sans-serif' font-weight='700' fill='%23ffffff' fill-opacity='0.025'>3D</text></svg>");
+}
+main > * {
+  position: relative;
+}
+
+/* 视图路由：用 .active 类切换显示 */
+main > [data-view] {
+  display: none;
+}
+[data-view="system"].active {
+  display: grid;
+}
+[data-view="servers"].active,
+[data-view="projects"].active,
+[data-view="monitor"].active {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+[data-view="peer-stream"].active {
+  display: block;
+  height: 100%;
 }
 
 /* ─── 侧边导航 ─────────────────────────────────────────────────────────── */
@@ -142,7 +233,7 @@ aside > .spacer::after {
 }
 
 /* 当前激活的标签页 */
-:target {
+.nav-active {
   background: var(--accent-soft) !important;
   color: var(--accent) !important;
   font-weight: 600;
@@ -152,10 +243,10 @@ aside > .spacer::after {
 
 form {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1.2rem;
-  max-width: 1200px;
-  align-items: start;
+  width: 100%;
+  align-items: stretch;
 }
 
 /* 分类卡片 (fieldset) */
@@ -206,6 +297,7 @@ label {
   margin-bottom: 0.45rem;
 }
 
+inline select,
 inline input,
 text-area textarea,
 input[type="number"],
@@ -369,7 +461,61 @@ td:last-child:hover {
 .dashboard {
   display: flex;
   flex-direction: column;
-  gap: 1.2rem;
+  gap: 1.6rem;
+}
+
+/* 远程监控子菜单（服务器状态 / 实例管理 二选一切换） */
+.sub-tabs {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-self: flex-start;
+  padding: 0.3rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.sub-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 1.15rem;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background var(--tr), color var(--tr);
+}
+.sub-tab:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.sub-tab.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* 子模块容器：默认隐藏，激活的才显示 */
+.monitor-module {
+  display: none;
+  flex-direction: column;
+  gap: 1.1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.3rem;
+}
+.monitor-module.active {
+  display: flex;
+}
+/* 模块内的面板/表格已自带边框，去掉外层重复描边带来的“盒中盒”感 */
+.monitor-module .log-panel,
+.monitor-module .audit-panel,
+.monitor-module .proc-table {
+  background: var(--surface-2);
 }
 
 .stat-cards {
@@ -504,7 +650,7 @@ td:last-child:hover {
 }
 
 @media (max-width: 560px) {
-  body {
+  .body-row {
     flex-direction: column;
   }
   aside {
@@ -528,4 +674,507 @@ td:last-child:hover {
   main {
     padding: 1rem;
   }
+  #modal-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── 通用按钮 ─────────────────────────────────────────────────────────── */
+button.primary,
+.table-toolbar button,
+.dash-toolbar button {
+  font-family: inherit;
+}
+button.primary {
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 0.55rem 1.2rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: filter var(--tr);
+}
+button.primary:hover {
+  filter: brightness(1.08);
+}
+
+/* ─── 表格工具栏 + 数据表格 ────────────────────────────────────────────── */
+.table-toolbar {
+  display: flex;
+  gap: 0.6rem;
+}
+.table-toolbar button:not(.primary) {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.55rem 1.2rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: border-color var(--tr), background var(--tr);
+}
+.table-toolbar button:not(.primary):hover {
+  border-color: var(--accent);
+}
+
+/* 表格里用小号原生复选框（覆盖全局的大开关样式） */
+table .col-check {
+  width: 3rem;
+  text-align: center;
+}
+table input[type="checkbox"] {
+  appearance: auto;
+  -webkit-appearance: auto;
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 3px;
+  border: none;
+  padding: 0;
+  accent-color: var(--accent);
+  vertical-align: middle;
+  cursor: pointer;
+}
+table input[type="checkbox"]::before {
+  content: none;
+}
+
+/* 操作列：多个动作链接 */
+table .actions {
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+table .actions a {
+  cursor: pointer;
+}
+table .actions a:hover {
+  text-decoration: underline;
+}
+table .actions a + a {
+  margin-left: 0.8rem;
+}
+.empty-row td {
+  color: var(--text-dim);
+  text-align: center;
+  padding: 1.6rem;
+}
+
+/* ─── 编辑弹窗 ─────────────────────────────────────────────────────────── */
+#modal[hidden] {
+  display: none;
+}
+#modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+}
+.modal-card {
+  position: relative;
+  width: min(44rem, 94vw);
+  max-height: 88vh;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+}
+.modal-card > header {
+  padding: 1.1rem 1.4rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+}
+#modal-body {
+  padding: 1.3rem 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.1rem 1.3rem;
+}
+#modal-body label {
+  margin-bottom: 0.3rem;
+}
+/* 跨整行的字段（长路径、附加参数、开关等） */
+#modal-body .full,
+#modal-body .switch {
+  grid-column: 1 / -1;
+}
+#modal-body .switch {
+  align-self: center;
+  margin-top: 0.2rem;
+}
+.modal-card > footer {
+  padding: 1rem 1.4rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  border-top: 1px solid var(--border);
+}
+.modal-card > footer button:not(.primary) {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.55rem 1.2rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+/* ─── 确认弹窗（删除 / 停止 / 退出，统一系统风格） ──────────────────────────── */
+.confirm-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.confirm-card {
+  position: relative;
+  width: min(25rem, 92vw);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: confirm-in var(--tr);
+}
+@keyframes confirm-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.5rem) scale(0.98);
+  }
+}
+.confirm-card > header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 1.3rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.confirm-card .confirm-ico {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.confirm-card .confirm-body {
+  padding: 1.4rem 1.3rem;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+.confirm-card > footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  padding: 0.9rem 1.3rem;
+  border-top: 1px solid var(--border);
+}
+.confirm-card footer button {
+  font-family: inherit;
+  font-size: 0.95rem;
+  border-radius: var(--radius);
+  padding: 0.55rem 1.3rem;
+  cursor: pointer;
+  transition: filter var(--tr), border-color var(--tr), background var(--tr);
+}
+.confirm-card .btn-cancel {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.confirm-card .btn-cancel:hover {
+  border-color: var(--accent);
+}
+.confirm-card .btn-ok {
+  border: none;
+  color: #fff;
+}
+.confirm-card .btn-ok.primary {
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+}
+.confirm-card .btn-ok.danger {
+  background: linear-gradient(180deg, #e9685b, #d63b2c);
+}
+.confirm-card .btn-ok:hover {
+  filter: brightness(1.08);
+}
+.confirm-card .btn-ok:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
+}
+
+/* ─── 登录页 ───────────────────────────────────────────────────────────── */
+#login-view[hidden] {
+  display: none;
+}
+#login-view {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 8vw;
+}
+.login-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 90% at 20% 10%, #1b2b66 0%, #0a1230 55%, #060a1c 100%);
+  overflow: hidden;
+}
+.login-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'><circle cx='2' cy='2' r='1' fill='%234a7bff' fill-opacity='0.5'/></svg>");
+  mask-image: radial-gradient(80% 70% at 30% 40%, #000 0%, transparent 70%);
+}
+.login-card {
+  position: relative;
+  width: min(30rem, 90vw);
+  padding: 2.4rem 2.6rem 2.8rem;
+  border-radius: var(--radius-lg);
+  background: rgba(28, 40, 86, 0.55);
+  border: 1px solid rgba(120, 150, 255, 0.25);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+}
+.login-card h1 {
+  margin: 0 0 1.8rem;
+  color: #fff;
+  font-size: 2.1rem;
+  letter-spacing: 0.18em;
+}
+.login-card label {
+  color: #cdd6ff;
+  font-size: 0.92rem;
+  margin: 0.6rem 0 0.5rem;
+}
+.login-card input {
+  background: #fff;
+  color: #1b1c21;
+  border: none;
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  font-size: 1rem;
+}
+.login-card .pass-wrap {
+  position: relative;
+  display: flex;
+}
+.login-card .pass-wrap input {
+  flex: 1;
+  padding-right: 2.6rem;
+}
+.login-card .eye {
+  position: absolute;
+  right: 0.9rem;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  opacity: 0.5;
+  user-select: none;
+}
+.login-btn {
+  margin-top: 2rem;
+  padding: 0.9rem;
+  font-size: 1.05rem;
+  letter-spacing: 0.3em;
+}
+
+/* ─── 主机资源卡片（远程监控） ─────────────────────────────────────────────── */
+.host-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.9rem;
+}
+.host-empty {
+  grid-column: 1 / -1;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  padding: 0.4rem 0.2rem;
+}
+.host-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.host-card .hc-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.host-card .hc-name {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+}
+.host-card .hc-val {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+.host-card .hc-sub {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+.gauge {
+  height: 0.5rem;
+  border-radius: 0.5rem;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.gauge > span {
+  display: block;
+  height: 100%;
+  border-radius: 0.5rem;
+  background: linear-gradient(90deg, var(--accent-2), var(--accent));
+  transition: width 0.4s ease;
+}
+.gauge.warn > span {
+  background: linear-gradient(90deg, #f1b24a, #e8821e);
+}
+.gauge.hot > span {
+  background: linear-gradient(90deg, #e9685b, #d63b2c);
+}
+
+/* ─── 访问审计面板 ─────────────────────────────────────────────────────────── */
+.audit-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.audit-panel > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.55rem 1rem;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.audit-panel > header button {
+  background: var(--surface-3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.audit-panel table {
+  border: none;
+  border-radius: 0;
+  line-height: 1.9rem;
+}
+.audit-table tbody {
+  display: block;
+  max-height: 30rem;
+  overflow-y: auto;
+}
+.audit-table thead,
+.audit-table tbody tr {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+.audit-table td:last-child {
+  color: var(--text-dim);
+  cursor: default;
+  font-weight: 400;
+}
+.evt-tag {
+  display: inline-block;
+  padding: 0 0.5rem;
+  border-radius: 0.4rem;
+  font-size: 0.78rem;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.evt-tag.warn {
+  background: rgba(232, 130, 30, 0.16);
+  color: #e8821e;
+}
+
+/* ─── 表格分页控件 ─────────────────────────────────────────────────────────── */
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+.pager:empty {
+  display: none;
+}
+.pager .pager-info {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  margin-right: auto;
+}
+.pager-btns {
+  display: inline-flex;
+  gap: 0.3rem;
+}
+.pager-btn {
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color var(--tr), background var(--tr), color var(--tr);
+}
+.pager-btn:hover:not(:disabled):not(.active) {
+  border-color: var(--accent);
+}
+.pager-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+  cursor: default;
+}
+.pager-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.pager-ellipsis {
+  align-self: center;
+  padding: 0 0.1rem;
+  color: var(--text-dim);
+}
+
+/* 审计面板内的分页作为面板底栏 */
+.audit-panel .pager {
+  padding: 0.55rem 1rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
 }

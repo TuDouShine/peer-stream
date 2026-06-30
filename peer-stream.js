@@ -1,4 +1,4 @@
-"5.1.3";
+"5.2.0";
 
 // Must be kept in sync with JavaScriptKeyCodeToFKey C++ array.
 // special keycodes different from KeyboardEvent.keyCode
@@ -97,6 +97,23 @@ const SEND = {
 
 let iceServers = undefined;
 
+/**
+ * <video is="peer-stream"> — WebRTC player custom element for UE Pixel Streaming.
+ *
+ * Public API
+ *   Properties : id (signaling ws:// URL), VideoEncoderQP, currentTime, pc, dc, ws
+ *   Methods    : emitMessage(msg, type?) -> Promise<true>   send to UE (awaits open)
+ *                request(msg, type?, timeout?) -> Promise<reply>  send + await reply
+ *                emitCommand(cmd) -> Promise   UE console command
+ *                setQuality("low"|"medium"|"high")
+ *                ready(timeout?) -> Promise    resolves when data channel open
+ *   Events     : "connected"          data channel open, ready to interact
+ *                "message"            (detail) inbound app message (JSON.parse'd)
+ *                "playerdisconnected"  WebRTC/socket dropped, auto-reconnecting
+ *                "ueDisConnected"     (detail) UE instance exited
+ *                "playerqueue"        (detail{seq}) queue position update
+ *   Constants  : PeerStream.SEND / PeerStream.RECEIVE (UE protocol message ids)
+ */
 class PeerStream extends HTMLVideoElement {
 	constructor() {
 		super();
@@ -895,9 +912,32 @@ class PeerStream extends HTMLVideoElement {
 		this.dc.send(data);
 	}
 
-	// emit string
-	emitMessage(msg, messageType = SEND.UIInteraction) {
+	/**
+	 * Resolve once the data channel is open and ready to send.
+	 * @param {number} [timeout=10000] reject after this many ms (0 = wait forever)
+	 * @returns {Promise<void>}
+	 */
+	ready(timeout = 10000) {
+		if (this.dc?.readyState === "open") return Promise.resolve();
+		return new Promise((resolve, reject) => {
+			const onOpen = () => { clearTimeout(timer); resolve(); };
+			const timer = timeout
+				? setTimeout(() => { this.removeEventListener("connected", onOpen); reject(new Error("peer-stream: data channel open timeout")); }, timeout)
+				: 0;
+			this.addEventListener("connected", onOpen, { once: true });
+		});
+	}
+
+	/**
+	 * Send a UTF-16 string / object to the UE app. Waits for the data channel to
+	 * be open, then sends. Resolves once the bytes are flushed.
+	 * @param {string|object} msg  object is JSON.stringify()'d
+	 * @param {number} [messageType=SEND.UIInteraction]
+	 * @returns {Promise<boolean>} resolves true when sent
+	 */
+	async emitMessage(msg, messageType = SEND.UIInteraction) {
 		if (typeof msg !== "string") msg = JSON.stringify(msg);
+		await this.ready();
 
 		// Add the UTF-16 JSON string to the array byte buffer, going two bytes at a time.
 		const data = new DataView(new ArrayBuffer(1 + 2 + 2 * msg.length));
@@ -912,12 +952,27 @@ class PeerStream extends HTMLVideoElement {
 			byteIdx += 2;
 		}
 		this.dc.send(data);
+		return true;
+	}
 
-		return new Promise(resolve => this.addEventListener(
-			'message',
-			e => resolve(e.detail),
-			{ once: true }
-		));
+	/**
+	 * Request/response helper: send a message and resolve with the NEXT inbound
+	 * "message" payload from the UE app. Use when the app replies to your message.
+	 * @param {string|object} msg
+	 * @param {number} [messageType=SEND.UIInteraction]
+	 * @param {number} [timeout=10000] reject after this many ms (0 = wait forever)
+	 * @returns {Promise<any>} the reply payload (e.detail)
+	 */
+	request(msg, messageType = SEND.UIInteraction, timeout = 10000) {
+		const reply = new Promise((resolve, reject) => {
+			const onMsg = (e) => { clearTimeout(timer); resolve(e.detail); };
+			const timer = timeout
+				? setTimeout(() => { this.removeEventListener("message", onMsg); reject(new Error("peer-stream: request timeout")); }, timeout)
+				: 0;
+			this.addEventListener("message", onMsg, { once: true });
+		});
+		this.emitMessage(msg, messageType).catch(() => {});
+		return reply;
 	}
 
 	normalize(x, y) {
@@ -1238,5 +1293,9 @@ class PeerStream extends HTMLVideoElement {
 	}
 
 }
+
+// Expose UE protocol message ids for callers that build raw messages.
+PeerStream.SEND = SEND;
+PeerStream.RECEIVE = RECEIVE;
 
 customElements.define("peer-stream", PeerStream, { extends: "video" });

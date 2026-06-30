@@ -21,6 +21,8 @@
 			]
 		}
 	],
-	"boot": true,
-	"comment": "INVETA官网：inveta.cn\nGITHUB仓库：github.com/inveta\nQQ交流群：681464378\n"
+	"boot": false,
+	"comment": "INVETA官网：inveta.cn\nGITHUB仓库：github.com/inveta\nQQ交流群：681464378\n",
+	"servers": [],
+	"projects": []
 }

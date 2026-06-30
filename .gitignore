@@ -1,0 +1,7 @@
+# 运行期生成的访问审计日志（Phase 6）
+access.ndjson
+
+# TLS 证书 / 私钥（Phase 4，公网部署时本地放置，勿入库）
+*.pem
+*.key
+*.crt

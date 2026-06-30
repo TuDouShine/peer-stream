@@ -44,10 +44,18 @@ function ConnectWsServer() {
     }
     require('child_process').exec(
       message,
-      { cwd: __dirname },
+      { cwd: __dirname, encoding: 'buffer' },
       (error, stdout, stderr) => {
         if (error) {
-          console.error(`exec error: ${error}`)
+          // Windows 中文控制台默认 GBK(cp936)，按 UTF-8 解析会乱码
+          const enc = process.platform === 'win32' ? 'gbk' : 'utf8'
+          let detail = ''
+          try {
+            detail = new TextDecoder(enc).decode(stderr || Buffer.alloc(0)).trim()
+          } catch {
+            detail = String(stderr || '')
+          }
+          console.error(`exec error: ${message}\n${detail || error.message}`)
           return
         }
       }

@@ -159,27 +159,43 @@ document.body.append(ps);
 
 ### 字符串消息收发
 
-发送消息:
+`emitMessage` 已 Promise 化：会先等待数据通道打开再发送。
 
 ```js
-// 若传入对象，会被JSON化
-ps.emitMessage(msg: string | object);
+// 若传入对象，会被 JSON 化；发送完成后 resolve 为 true
+await ps.emitMessage(msg /* : string | object */);
+
+// 等待连接就绪
+await ps.ready();
 ```
 
 接收消息:
 
 ```js
 ps.addEventListener("message", e => {
-    // JSON.parse(e.detail)
+    // e.detail 已是解析后的对象
 });
 ```
 
-异步请求：
+请求-响应（发送并等待应用层的下一条返回消息）：
 
 ```js
-response = await ps.emitMessage(request);
-// 返回不稳定
+const reply = await ps.request({ getState: 1 });
 ```
+
+### 公开 API
+
+| 成员 | 说明 |
+| ---- | ---- |
+| `ps.id` | 信令 WebSocket 地址（`ws://` / `wss://`），留空则按页面地址推导 |
+| `ps.emitMessage(msg, type?)` | → `Promise<true>`，发送消息（自动等待通道打开） |
+| `ps.request(msg, type?, timeout?)` | → `Promise<reply>`，发送并等待下一条返回 |
+| `ps.emitCommand(cmd)` | 执行 UE 控制台命令（需 `-AllowPixelStreamingCommands`） |
+| `ps.setQuality("low"\|"medium"\|"high")` | 应用画质预设 |
+| `ps.ready(timeout?)` | → `Promise`，数据通道打开后 resolve |
+| `PeerStream.SEND` / `PeerStream.RECEIVE` | UE 协议消息号 |
+
+类型声明见 `peer-stream.d.ts`；npm 安装：`npm install peer-stream`。
 
 ### video事件监听
 

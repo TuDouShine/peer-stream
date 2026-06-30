@@ -88,19 +88,61 @@ document.body.append(ps);
 
 ### Messages
 
-sending messages:
+`emitMessage` is Promise-based: it waits for the data channel to open, then sends.
 
 ```js
-// object will be JSON.stringify()
-ps.emitMessage(msg: string | object);
+// object is JSON.stringify()'d. resolves `true` once the bytes are flushed.
+await ps.emitMessage(msg /* : string | object */);
+
+// wait until ready before driving the app
+await ps.ready();
+
+// request/response: send and resolve with the next inbound app message
+const reply = await ps.request({ getState: 1 });
 ```
 
 receiving messages:
 
 ```js
 ps.addEventListener("message", e => {
-    // JSON.parse(e.detail)
+    // e.detail is the already-parsed payload
 });
+```
+
+### Public API
+
+| member | description |
+| ------ | ----------- |
+| `ps.id` | signaling WebSocket URL (`ws://` / `wss://`); empty = derive from page URL |
+| `ps.emitMessage(msg, type?)` | → `Promise<true>` — send to UE (awaits channel open) |
+| `ps.request(msg, type?, timeout?)` | → `Promise<reply>` — send and await the next app message |
+| `ps.emitCommand(cmd)` | run a UE console command (needs `-AllowPixelStreamingCommands`) |
+| `ps.setQuality("low"\|"medium"\|"high")` | apply a quality preset |
+| `ps.ready(timeout?)` | → `Promise` — resolves when the data channel is open |
+| `PeerStream.SEND` / `PeerStream.RECEIVE` | UE protocol message ids |
+
+events: `connected`, `message`, `playerdisconnected`, `ueDisConnected`, `playerqueue`.
+
+### TypeScript
+
+Type declarations ship in `peer-stream.d.ts`:
+
+```ts
+import type { PeerStream } from "peer-stream";
+const ps = document.createElement("video", { is: "peer-stream" }) as PeerStream;
+```
+
+### npm
+
+```s
+npm install peer-stream
+```
+
+```js
+import "peer-stream";          // registers <video is="peer-stream">
+// or run the signaling server:
+//   npx --package peer-stream node -e "require('peer-stream/signal')"
+//   npm start                 // = node signal.js
 ```
 
 ## Requirement

@@ -3,222 +3,358 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Peer-Stream 控制台</title>
+    <title>3D 渲染管理平台</title>
     <link
       rel="icon"
       type="image/svg+xml"
-      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'><rect width='1' height='1' fill='coral'/></svg>"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'><rect width='1' height='1' fill='%234a7bff'/></svg>"
     />
     <link rel="stylesheet" href="./signal.css" />
   </head>
 
-  <body>
-    <aside>
-      <a
-        href="./signal.json"
-        target="_blank"
-        download="signal.json"
-        title="下载配置"
-        icon="⬇️"
-        aria-label="下载 signal.json"
-      ></a>
-      <a href="#signal.json" id="signal.json" title="系统配置" icon="⚙️" aria-label="系统配置"></a>
-      <a href="#peer-stream" id="peer-stream" title="进入应用" icon="▶️" aria-label="进入应用"></a>
-      <a href="#signal.js" id="signal.js" title="进程管理" icon="📊" aria-label="进程管理"></a>
-
-      <div class="spacer"></div>
-
-      <a
-        href="https://github.com/inveta/peer-stream"
-        target="_blank"
-        rel="noopener"
-        title="源码"
-        icon="📦"
-        aria-label="Github 源码"
-      ></a>
-      <button id="checkUpdate" title="检查更新" icon="🔍" onclick="handleCheckUpdate()" aria-label="检查更新"></button>
-      <button id="themeToggle" title="主题" icon="🌙" onclick="toggleTheme()" aria-label="切换主题"></button>
-    </aside>
-
-    <main>
-      <empty></empty>
-
-      <form onchange="submitConfig(event)">
-        <fieldset class="card span-all">
-          <legend>🌐 网络设置</legend>
-          <div class="fields">
-            <inline>
-              <label for="PORT">端口号</label>
-              <input type="number" id="PORT" name="PORT" required />
-            </inline>
-            <inline>
-              <label for="preload">预加载个数</label>
-              <input type="number" name="preload" id="preload" required />
-            </inline>
-            <inline>
-              <label for="exeUeCoolTime">实例冷却期 (秒)</label>
-              <input type="number" name="exeUeCoolTime" id="exeUeCoolTime" required />
-            </inline>
-          </div>
-        </fieldset>
-
-        <fieldset class="card">
-          <legend>🔒 访问认证</legend>
-          <div class="fields">
-            <label class="switch">
-              <input type="checkbox" id="http-auth" name="http-auth" />
-              <span>启用 HTTP 认证</span>
-            </label>
-            <inline class="auth-field wide">
-              <label for="auth">用户名 : 密码</label>
-              <input
-                type="password"
-                id="auth"
-                name="auth"
-                pattern="/^[a-zA-Z0-9]+:[a-zA-Z0-9]+$/"
-                autocomplete="off"
-                value="admin:000000"
-                onblur="this.type='password'"
-                onfocus="this.type='text'"
-              />
-            </inline>
-          </div>
-        </fieldset>
-
-        <fieldset class="card">
-          <legend>⚙️ 运行模式</legend>
-          <div class="fields">
-            <label class="switch">
-              <input type="checkbox" id="one2one" name="one2one" />
-              <span>一对一模式</span>
-            </label>
-            <label class="switch">
-              <input type="checkbox" id="boot" name="boot" />
-              <span>开机自启动</span>
-            </label>
-            <label class="switch">
-              <input type="checkbox" id="UEVersion" name="UEVersion" />
-              <span>旧版 UE4 协议</span>
-            </label>
-          </div>
-        </fieldset>
-
-        <fieldset class="card span-all">
-          <legend>🎮 UE 启动参数</legend>
-          <div class="fields">
-            <inline class="wide">
-              <label for="GPUFile">UE 启动文件（GPU 服务器中的绝对路径）</label>
-              <input
-                type="text"
-                name="GPUFile"
-                id="GPUFile"
-                placeholder="例如：C:\Apps\MyApp\MyApp.exe"
-              />
-            </inline>
-            <inline>
-              <label for="resolution">分辨率</label>
-              <input
-                type="text"
-                name="resolution"
-                list="resolutionList"
-                id="resolution"
-                placeholder="如：1920*1080"
-              />
-              <datalist id="resolutionList">
-                <option value="1920*1080"></option>
-                <option value="1600*900"></option>
-                <option value="1366*768"></option>
-                <option value="1280*720"></option>
-                <option value="800*600"></option>
-                <option value="640*480"></option>
-              </datalist>
-            </inline>
-            <inline>
-              <label for="pixelStreamingWebRTCFps">渲染帧率</label>
-              <input
-                type="number"
-                name="pixelStreamingWebRTCFps"
-                id="pixelStreamingWebRTCFps"
-                placeholder="如：30"
-              />
-            </inline>
-            <inline id="GPU">
-              <label for="GPUNumber">GPU 数量</label>
-              <input type="number" name="GPUNumber" id="GPUNumber" placeholder="需要的 GPU 数量" />
-            </inline>
-            <!-- 每块 GPU 的进程承载量由 JS 动态插入在 #GPU 之后 -->
-            <div class="toggle-row wide">
-              <label class="switch">
-                <input type="checkbox" name="unattended" id="unattended" />
-                <span>忽略错误弹窗</span>
-              </label>
-              <label class="switch">
-                <input type="checkbox" name="renderOffScreen" id="renderOffScreen" />
-                <span>后台渲染</span>
-              </label>
-              <label class="switch">
-                <input type="checkbox" name="audioMixer" id="audioMixer" />
-                <span>传输音频</span>
-              </label>
-            </div>
-          </div>
-        </fieldset>
-
-        <fieldset class="card span-all">
-          <legend>🧊 高级设置</legend>
-          <div class="fields">
-            <text-area class="wide">
-              <label for="iceServers">ICE 服务器（STUN / TURN，JSON 格式）</label>
-              <textarea id="iceServers" name="iceServers"></textarea>
-            </text-area>
-            <text-area class="wide">
-              <label for="comment">备注</label>
-              <textarea id="comment" name="comment"></textarea>
-            </text-area>
-          </div>
-        </fieldset>
+  <body data-theme="dark">
+    <!-- ═══ 登录页（token 模式且未登录时显示） ═══ -->
+    <div id="login-view" hidden>
+      <div class="login-bg"></div>
+      <form class="login-card" onsubmit="return doLogin(event)">
+        <h1>登录</h1>
+        <label for="login-user">用户名</label>
+        <input id="login-user" type="text" autocomplete="username" placeholder="请输入账号" value="admin" />
+        <label for="login-pass">密码</label>
+        <div class="pass-wrap">
+          <input id="login-pass" type="password" autocomplete="current-password" placeholder="请输入密码" />
+          <span class="eye" onclick="togglePass()" title="显示 / 隐藏">👁</span>
+        </div>
+        <button type="submit" class="primary login-btn">登 录</button>
       </form>
+    </div>
 
-      <video is="peer-stream" ui onplaying="getStats()">
-        <track default kind="captions" srclang="en" />
-      </video>
-
-      <section class="dashboard">
-        <div class="stat-cards">
-          <div class="stat"><span class="stat-value" data-stat="players">0</span><span class="stat-label">在线用户</span></div>
-          <div class="stat"><span class="stat-value" data-stat="engines">0</span><span class="stat-label">UE 实例</span></div>
-          <div class="stat"><span class="stat-value" data-stat="freeUe">0</span><span class="stat-label">空闲实例</span></div>
-          <div class="stat"><span class="stat-value" data-stat="agents">0</span><span class="stat-label">启动代理</span></div>
-          <div class="stat"><span class="stat-value" data-stat="queued">0</span><span class="stat-label">排队中</span></div>
-          <div class="stat"><span class="stat-value" data-stat="uptime">—</span><span class="stat-label">运行时长</span></div>
+    <!-- ═══ 主应用 ═══ -->
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="logo">3D<small>STREAMING</small></span>
+          <span class="brand-title">3D渲染管理平台</span>
         </div>
+        <button class="icon-btn power" title="退出登录 / 停止" onclick="appExit()" aria-label="退出">⏻</button>
+      </header>
 
-        <div class="dash-toolbar">
-          <button type="button" onclick="adminCmd('startUe')">▶️ 启动 UE 实例</button>
-          <button type="button" onclick="adminCmd('refresh')">🔄 刷新</button>
-        </div>
+      <div class="body-row">
+        <aside>
+          <a href="#system" id="nav-system" icon="⚙️" title="系统管理" aria-label="系统管理"></a>
+          <a href="#servers" id="nav-servers" icon="🖥️" title="服务器管理" aria-label="服务器管理"></a>
+          <a href="#projects" id="nav-projects" icon="📁" title="UE工程管理" aria-label="UE工程管理"></a>
+          <a href="#monitor" id="nav-monitor" icon="📡" title="远程监控" aria-label="远程监控"></a>
 
-        <table onclick="tableClick(event)">
-          <thead>
-            <tr>
-              <th>进程</th>
-              <th>IP地址</th>
-              <th>端口号</th>
-              <th>路径</th>
-              <th>在线时长</th>
-              <th>玩家数</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+          <div class="spacer"></div>
 
-        <div class="log-panel">
-          <header>服务器日志</header>
-          <pre class="logs" data-logs></pre>
-        </div>
-      </section>
-    </main>
+          <a href="#peer-stream" id="nav-player" icon="▶️" title="进入应用" aria-label="进入应用"></a>
+          <button id="checkUpdate" title="检查更新" icon="🔍" onclick="handleCheckUpdate()" aria-label="检查更新"></button>
+          <button id="themeToggle" title="主题" icon="🌙" onclick="toggleTheme()" aria-label="切换主题"></button>
+        </aside>
+
+        <main>
+          <!-- ── 系统管理 ── -->
+          <form id="view-system" data-view="system" onchange="submitConfig(event)">
+            <fieldset class="card span-all">
+              <legend>🌐 网络设置</legend>
+              <div class="fields">
+                <inline>
+                  <label for="PORT">端口号</label>
+                  <input type="number" id="PORT" name="PORT" required />
+                </inline>
+                <inline>
+                  <label for="serverIp">服务 IP 地址</label>
+                  <input type="text" id="serverIp" name="serverIp" placeholder="如 127.0.0.1（UE 回连信令的地址）" />
+                </inline>
+                <inline>
+                  <label for="preload">预加载个数</label>
+                  <input type="number" name="preload" id="preload" />
+                </inline>
+                <inline>
+                  <label for="exeUeCoolTime">实例冷却期 (秒)</label>
+                  <input type="number" name="exeUeCoolTime" id="exeUeCoolTime" />
+                </inline>
+              </div>
+            </fieldset>
+
+            <fieldset class="card">
+              <legend>🔒 访问认证</legend>
+              <div class="fields">
+                <label class="switch">
+                  <input type="checkbox" id="http-auth" name="http-auth" />
+                  <span>启用用户认证</span>
+                </label>
+                <inline class="auth-field wide">
+                  <label for="auth">用户名 : 密码</label>
+                  <input
+                    type="password"
+                    id="auth"
+                    name="auth"
+                    autocomplete="off"
+                    value="admin:000000"
+                    onblur="this.type='password'"
+                    onfocus="this.type='text'"
+                  />
+                </inline>
+              </div>
+            </fieldset>
+
+            <fieldset class="card">
+              <legend>⚙️ 运行模式</legend>
+              <div class="fields">
+                <label class="switch">
+                  <input type="checkbox" id="one2one" name="one2one" />
+                  <span>一对一模式</span>
+                </label>
+                <label class="switch">
+                  <input type="checkbox" id="strictMatch" name="strictMatch" />
+                  <span>严格工程匹配</span>
+                </label>
+                <label class="switch">
+                  <input type="checkbox" id="boot" name="boot" />
+                  <span>开机自启动</span>
+                </label>
+                <label class="switch">
+                  <input type="checkbox" id="UEVersion" name="UEVersion" />
+                  <span>旧版 UE4 协议</span>
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset class="card span-all">
+              <legend>🎬 渲染默认参数</legend>
+              <div class="fields">
+                <inline>
+                  <label for="fps">发送帧率</label>
+                  <input type="number" name="fps" id="fps" placeholder="如 30" />
+                </inline>
+                <inline>
+                  <label for="resolution">分辨率</label>
+                  <input type="text" name="resolution" list="resolutionList" id="resolution" placeholder="如 1920*1080" />
+                  <datalist id="resolutionList">
+                    <option value="1920*1080"></option>
+                    <option value="1600*900"></option>
+                    <option value="1366*768"></option>
+                    <option value="1280*720"></option>
+                    <option value="800*600"></option>
+                    <option value="640*480"></option>
+                  </datalist>
+                </inline>
+                <div class="toggle-row wide">
+                  <label class="switch">
+                    <input type="checkbox" name="unattended" id="unattended" />
+                    <span>异常忽略</span>
+                  </label>
+                  <label class="switch">
+                    <input type="checkbox" name="renderOffScreen" id="renderOffScreen" />
+                    <span>渲染程序后台运行</span>
+                  </label>
+                  <label class="switch">
+                    <input type="checkbox" name="audioMixer" id="audioMixer" />
+                    <span>音频发送</span>
+                  </label>
+                </div>
+              </div>
+            </fieldset>
+
+            <fieldset class="card span-all">
+              <legend>🛡️ 安全加固（公网部署）</legend>
+              <div class="fields">
+                <inline class="wide">
+                  <label for="tls.cert">TLS 证书路径 (cert)</label>
+                  <input type="text" id="tls.cert" name="tls.cert" placeholder="留空 = HTTP；例如 ./cert.pem" />
+                </inline>
+                <inline class="wide">
+                  <label for="tls.key">TLS 私钥路径 (key)</label>
+                  <input type="text" id="tls.key" name="tls.key" placeholder="例如 ./key.pem（改动后需重启或改端口生效）" />
+                </inline>
+                <inline>
+                  <label for="token.secret">登录令牌密钥 (token secret)</label>
+                  <input
+                    type="password"
+                    id="token.secret"
+                    name="token.secret"
+                    autocomplete="off"
+                    placeholder="留空 = 不启用令牌登录"
+                    onblur="this.type='password'"
+                    onfocus="this.type='text'"
+                  />
+                </inline>
+                <inline>
+                  <label for="token.ttl">令牌有效期 (秒)</label>
+                  <input type="number" id="token.ttl" name="token.ttl" placeholder="如 86400" />
+                </inline>
+                <inline>
+                  <label for="rateLimit.windowMs">限流时间窗 (毫秒)</label>
+                  <input type="number" id="rateLimit.windowMs" name="rateLimit.windowMs" placeholder="如 60000" />
+                </inline>
+                <inline>
+                  <label for="rateLimit.max">窗口内最大请求数</label>
+                  <input type="number" id="rateLimit.max" name="rateLimit.max" placeholder="留空 / 0 = 不限流" />
+                </inline>
+                <text-area class="wide">
+                  <label for="ipWhitelist">IP 白名单（每行一个，支持 CIDR；留空 = 放行所有）</label>
+                  <textarea id="ipWhitelist" name="ipWhitelist" placeholder="例如：&#10;127.0.0.1&#10;192.168.1.0/24"></textarea>
+                </text-area>
+              </div>
+            </fieldset>
+
+            <fieldset class="card span-all">
+              <legend>🧊 高级设置</legend>
+              <div class="fields">
+                <text-area class="wide">
+                  <label for="iceServers">ICE 服务器（STUN / TURN，JSON 格式）</label>
+                  <textarea id="iceServers" name="iceServers"></textarea>
+                </text-area>
+                <text-area class="wide">
+                  <label for="comment">备注</label>
+                  <textarea id="comment" name="comment"></textarea>
+                </text-area>
+              </div>
+            </fieldset>
+          </form>
+
+          <!-- ── 服务器管理 ── -->
+          <section id="view-servers" data-view="servers">
+            <div class="table-toolbar">
+              <button type="button" class="primary" onclick="openServerDialog()">新 增</button>
+              <button type="button" onclick="deleteChecked('servers')">删 除</button>
+            </div>
+            <table data-grid="servers">
+              <thead>
+                <tr>
+                  <th class="col-check"><input type="checkbox" class="chk-all" onclick="toggleAll(this,'servers')" /></th>
+                  <th>序号</th>
+                  <th>IP 地址</th>
+                  <th>显卡序号</th>
+                  <th>显存</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </section>
+
+          <!-- ── UE工程管理 ── -->
+          <section id="view-projects" data-view="projects">
+            <div class="table-toolbar">
+              <button type="button" class="primary" onclick="openProjectDialog()">新 增</button>
+              <button type="button" onclick="deleteChecked('projects')">删 除</button>
+            </div>
+            <table data-grid="projects">
+              <thead>
+                <tr>
+                  <th class="col-check"><input type="checkbox" class="chk-all" onclick="toggleAll(this,'projects')" /></th>
+                  <th>序号</th>
+                  <th>UE工程名称</th>
+                  <th>UE路径</th>
+                  <th>UE版本</th>
+                  <th>预加载</th>
+                  <th>GPU显存(G)</th>
+                  <th>UE工程标识</th>
+                  <th>附加参数</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </section>
+
+          <!-- ── 远程监控 ── -->
+          <section id="view-monitor" data-view="monitor" class="dashboard">
+            <!-- 远程监控子菜单：服务器状态 / 实例管理（分开展示，避免单页拥挤） -->
+            <div class="sub-tabs" role="tablist">
+              <button type="button" class="sub-tab active" data-subtab="status" onclick="switchMonitorTab('status')">🖥️ 服务器状态</button>
+              <button type="button" class="sub-tab" data-subtab="instances" onclick="switchMonitorTab('instances')">🎬 实例管理</button>
+            </div>
+
+            <!-- 子模块：服务器状态（主机资源 / 日志 / 访问审计） -->
+            <section class="monitor-module active" data-sub="status">
+              <div class="host-stats" data-host>
+                <div class="host-empty">主机资源采集中…（GPU 数据需安装 nvidia-smi）</div>
+              </div>
+
+              <div class="log-panel">
+                <header>服务器日志</header>
+                <pre class="logs" data-logs></pre>
+              </div>
+
+              <div class="audit-panel">
+                <header>
+                  <span>访问审计</span>
+                  <button type="button" onclick="loadAudit()">🔄 刷新</button>
+                </header>
+                <table class="audit-table">
+                  <thead>
+                    <tr>
+                      <th>时间</th>
+                      <th>事件</th>
+                      <th>工程</th>
+                      <th>IP / 端口</th>
+                      <th>详情</th>
+                    </tr>
+                  </thead>
+                  <tbody data-audit></tbody>
+                </table>
+                <div class="pager" data-pager="audit"></div>
+              </div>
+            </section>
+
+            <!-- 子模块：实例管理（在线用户 / 实例统计 / 实例列表） -->
+            <section class="monitor-module" data-sub="instances">
+              <div class="stat-cards">
+                <div class="stat"><span class="stat-value" data-stat="players">0</span><span class="stat-label">在线用户</span></div>
+                <div class="stat"><span class="stat-value" data-stat="engines">0</span><span class="stat-label">UE 实例</span></div>
+                <div class="stat"><span class="stat-value" data-stat="freeUe">0</span><span class="stat-label">空闲实例</span></div>
+                <div class="stat"><span class="stat-value" data-stat="agents">0</span><span class="stat-label">启动代理</span></div>
+                <div class="stat"><span class="stat-value" data-stat="queued">0</span><span class="stat-label">排队中</span></div>
+                <div class="stat"><span class="stat-value" data-stat="uptime">—</span><span class="stat-label">运行时长</span></div>
+              </div>
+
+              <div class="dash-toolbar">
+                <button type="button" class="primary" onclick="adminCmd('startUe')">▶️ 启动 UE 实例</button>
+                <button type="button" onclick="adminCmd('refresh')">🔄 刷新</button>
+              </div>
+
+              <table class="proc-table" onclick="tableClick(event)">
+                <thead>
+                  <tr>
+                    <th>类型</th>
+                    <th>IP地址</th>
+                    <th>端口号</th>
+                    <th>路径 / 工程</th>
+                    <th>在线时长</th>
+                    <th>玩家数</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+              <div class="pager" data-pager="proc"></div>
+            </section>
+          </section>
+
+          <!-- ── 播放器（进入应用） ── -->
+          <video is="peer-stream" data-view="peer-stream" ui onplaying="getStats()">
+            <track default kind="captions" srclang="en" />
+          </video>
+        </main>
+      </div>
+    </div>
+
+    <!-- ═══ 通用编辑弹窗 ═══ -->
+    <div id="modal" hidden>
+      <div class="modal-backdrop" onclick="closeModal()"></div>
+      <form class="modal-card" onsubmit="return saveModal(event)">
+        <header id="modal-title">编辑</header>
+        <div id="modal-body"></div>
+        <footer>
+          <button type="button" onclick="closeModal()">取 消</button>
+          <button type="submit" class="primary">保 存</button>
+        </footer>
+      </form>
+    </div>
 
     <div id="toast-container"></div>
 

@@ -1,0 +1,56 @@
+{
+  "name": "peer-stream",
+  "version": "5.2.0",
+  "description": "Zero-dependency WebRTC SDK + signaling server for Unreal Engine Pixel Streaming",
+  "type": "commonjs",
+  "main": "peer-stream.js",
+  "module": "peer-stream.js",
+  "types": "peer-stream.d.ts",
+  "exports": {
+    ".": {
+      "types": "./peer-stream.d.ts",
+      "import": "./peer-stream.js",
+      "default": "./peer-stream.js"
+    },
+    "./peer-stream.js": "./peer-stream.js",
+    "./signal": "./signal.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "peer-stream.js",
+    "peer-stream.d.ts",
+    "signal.js",
+    "signal.html",
+    "signal.css",
+    "signal-ui.js",
+    "signal.json",
+    "exec-ue.js",
+    "README.md",
+    "README-zh.md"
+  ],
+  "scripts": {
+    "start": "node signal.js"
+  },
+  "dependencies": {
+    "ws": "^8.5.0"
+  },
+  "engines": {
+    "node": ">=14"
+  },
+  "keywords": [
+    "webrtc",
+    "pixel-streaming",
+    "unreal-engine",
+    "ue5",
+    "cloud-rendering",
+    "streaming",
+    "signaling",
+    "web-components"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TuDouShine/peer-stream.git"
+  },
+  "homepage": "https://github.com/TuDouShine/peer-stream#readme"
+}
